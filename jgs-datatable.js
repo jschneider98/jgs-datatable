@@ -11,6 +11,9 @@ class JgsDataTable {
     this.editor = undefined;
     this.dropdown = undefined;
 
+    this.dropdownItems = [];
+    this.currentDropdownItems = [];
+
     this.numRows = data.length;
     this.numCols = this.options.columns.length;
 
@@ -63,8 +66,8 @@ class JgsDataTable {
     if (this.options.rowCellStyle === undefined) {
       this.options.rowCellStyle = {
         'background-color': '#fff',
-        'border-top-width': '0',
-        'border-left-width': '0',
+        'border-top': '1px solid transparent',
+        'border-left': '1px solid transparent',
         'border-right': '1px solid #ccc',
         'border-bottom': '1px solid #ccc',
         'white-space': 'nowrap',
@@ -81,8 +84,8 @@ class JgsDataTable {
 
     if (this.options.rowCellHighlightStyle === undefined) {
       this.options.rowCellHighlightStyle = {
-        // 'background-color': 'rgba(75, 137, 255, 0.25)',
-        'border': '2px solid #4b89ff'
+        'background-color': 'rgba(75, 137, 255, 0.1)',
+        'border': '1px solid #4b89ff'
       }
     }
 
@@ -106,6 +109,34 @@ class JgsDataTable {
       }
     }
 
+    if (this.options.dropdownStyle === undefined) {
+      this.options.dropdownStyle = {
+        'background-color': '#fff',
+        'border': '1px solid #ccc',
+        'white-space': 'nowrap',
+        'overflow': 'hidden',
+        'line-height': '21px',
+        'font-size': '13px',
+        'font-family': '-apple-system, "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif',
+        'z-index': '200'
+      }
+    }
+
+    if (this.options.dropdownItemStyle === undefined) {
+      this.options.dropdownItemStyle = {
+        'cursor': 'default',
+        'background-color': '#fff',
+        // 'border-bottom': '1px solid #ccc',
+        'white-space': 'nowrap',
+        'overflow': 'hidden',
+        'line-height': '21px',
+        'font-size': '13px',
+        'font-family': '-apple-system, "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif',
+        'z-index': '200',
+        'padding': '0 4px'
+      }
+    }
+
     this.toHtml();
   }
 
@@ -114,7 +145,7 @@ class JgsDataTable {
     let target = event.target;
 
     do {
-      if (target == self.table) {
+      if (target == self.container) {
         return;
       }
 
@@ -258,6 +289,7 @@ class JgsDataTable {
     }
 
     this.container.appendChild(this.table);
+    this.container.style['position'] = 'relative';
   }
 
   //
@@ -342,29 +374,9 @@ class JgsDataTable {
     cell.innerHTML = '';
 
     cell.appendChild(this.editor);
-
-    const index = cell.dataset.colIndex*1;
-
-    if (this.options.columns[index].type !== undefined && this.options.columns[index].type === 'autocomplete') {
-      this.dropdown = document.createElement('div');
-
-      const rect = cell.getBoundingClientRect();
-      console.log(rect);
-
-      this.dropdown.innerHTML = '<div>test 1</div><div>test 2</div>';
-      this.dropdown.style['position'] = 'fixed';
-      this.dropdown.style['top'] = rect.bottom + 'px';
-      this.dropdown.style['left'] = rect.left + 'px';
-      this.dropdown.style['background-color'] = '#fff';
-      this.dropdown.style['border'] = '1px solid #ccc';
-      this.dropdown.style['white-space'] = 'nowrap';
-      this.dropdown.style['overflow'] = 'hidden';
-      this.dropdown.style['width'] = rect.right - rect.left + 'px';
-
-      document.body.appendChild(this.dropdown);
-    }
-
     this.editor.focus();
+
+    this.initDropdown(cell);
   }
 
   //
@@ -398,6 +410,109 @@ class JgsDataTable {
 
     this.editing = false;
     this.currentCell = {}
+  }
+
+  //
+  initDropdown(cell) {
+
+    if (cell === undefined) {
+      return;
+    }
+
+    const index = cell.dataset.colIndex*1;
+
+    this.dropdownItems = [];
+
+    if (
+      this.options.columns[index].type !== undefined
+      && this.options.columns[index].type === 'autocomplete'
+      && this.options.columns[index].source !== undefined
+      ) {
+
+      this.dropdown = document.createElement('div');
+
+      const cellBox = cell.getBoundingClientRect();
+      const containerBox = this.container.getBoundingClientRect();
+      const top = cellBox.bottom - containerBox.top ;
+      const left = cellBox.left - containerBox.left;
+
+      this.setElementStyle(this.dropdown, this.options.dropdownStyle);
+
+      this.dropdown.style['position'] = 'absolute';
+      this.dropdown.style['top'] = top + 'px';
+      this.dropdown.style['left'] = left + 'px';
+      this.dropdown.style['width'] = cellBox.right - cellBox.left + 'px';
+
+      for (let value of this.options.columns[index].source) {
+        this.dropdownItems.push(value);
+      }
+
+      this.editor.addEventListener('keyup', () => {
+        this.filterDropdown();
+      });
+
+      this.filterDropdown();
+    }
+  }
+
+  //
+  filterDropdown() {
+
+    if (this.dropdown === undefined) {
+      return;
+    }
+
+    const searchValue = this.editor.value.toLowerCase();
+    this.currentDropdownItems = [];
+
+    this.dropdown.innerHTML = '';
+
+    for (let value of this.dropdownItems) {
+      const lowerValue = value.toLowerCase();
+
+      if (lowerValue.includes(searchValue)) {
+        this.currentDropdownItems.push(value);
+
+        const item = document.createElement('div');
+
+        item.innerHTML = value;
+
+        this.setElementStyle(item, this.options.dropdownItemStyle);
+
+        item.addEventListener('click', () => {
+          this.editor.value = item.innerHTML;
+          const currentCell = this.currentCell;
+
+          setTimeout(() => {
+            this.selectCell(currentCell);
+          }, "10");
+        });
+
+        item.addEventListener('mouseover', () => {
+          let color = '#f0f0f0';
+
+          if (this.options.headerCellStyle['background-color'] !== undefined) {
+            color = this.options.headerCellStyle['background-color'];
+          }
+
+          item.style['background-color'] = color;
+        });
+
+        item.addEventListener('mouseout', () => {
+          let color = '#fff';
+
+          if (this.options.dropdownItemStyle['background-color'] !== undefined) {
+            color = this.options.dropdownItemStyle['background-color'];
+          }
+
+          item.style['background-color'] = color;
+        });
+
+        this.dropdown.appendChild(item);
+      }
+    }
+
+    this.container.appendChild(this.dropdown);
   }
 
   //
