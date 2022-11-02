@@ -13,6 +13,7 @@ class JgsDataTable {
 
     this.dropdownItems = [];
     this.currentDropdownItems = [];
+    this.highlightedItem = undefined;
 
     this.numRows = data.length;
     this.numCols = this.options.columns.length;
@@ -141,11 +142,11 @@ class JgsDataTable {
   }
 
   //
-  checkClickOutside(self, event) {
+  checkClickOutside(event) {
     let target = event.target;
 
     do {
-      if (target == self.container) {
+      if (target == this.container) {
         return;
       }
 
@@ -153,29 +154,33 @@ class JgsDataTable {
     } while (target);
 
     // clicked outside
-    self.deactivateCurrentCell();
+    this.deactivateCurrentCell();
   }
 
   //
-  doKeyup(self, event) {
+  doKeyLogic(event) {
     let forceSelect = false;
     let key = event.key;
 
-    if (self.currentCell.dataset === undefined) {
+    if (this.currentCell.dataset === undefined) {
       return;
     }
 
     if (key === 'Escape') {
-      if (self.editing === true) {
-        this.selectCell(self.currentCell);
+      if (this.editing === true) {
+        this.selectCell(this.currentCell);
         return;
       }
     }
 
     if (key === 'Enter') {
-      if (self.editing === false) {
-        self.editCell(self.currentCell);
+      if (this.editing === false) {
+        this.editCell(this.currentCell);
         return;
+      }
+
+      if (this.dropdown !== undefined && this.highlightedItem !== undefined) {
+        this.editor.value = this.highlightedItem.innerHTML;
       }
 
       forceSelect = true;
@@ -184,20 +189,48 @@ class JgsDataTable {
 
     if (key === 'Tab') {
       event.preventDefault();
+
       forceSelect = true;
       key = 'ArrowRight';
+
+      if (this.dropdown !== undefined && this.highlightedItem !== undefined) {
+        this.editor.value = this.highlightedItem.innerHTML;
+      }
 
       if (event.shiftKey) {
         key = 'ArrowLeft';
       }
     }
 
-    if (self.editing === true && forceSelect === false) {
+    if (this.editing === true && forceSelect === false) {
+
+      if (this.dropdown === undefined) {
+        return;
+      }
+
+      if (key === 'ArrowDown') {
+
+        if (this.highlightedItem === undefined) {
+          this.highlightItemByIndex(0);
+        }
+
+        this.highlightItemByIndex(this.highlightedItem.dataset.index*1 + 1);
+      }
+
+      if (key === 'ArrowUp') {
+
+        if (this.highlightedItem === undefined) {
+          return;
+        }
+
+        this.highlightItemByIndex(this.highlightedItem.dataset.index*1 - 1);
+      }
+
       return;
     }
 
-    const rowIndex = self.currentCell.dataset.rowIndex*1;
-    const colIndex = self.currentCell.dataset.colIndex*1;
+    const rowIndex = this.currentCell.dataset.rowIndex*1;
+    const colIndex = this.currentCell.dataset.colIndex*1;
 
     let newRowIndex = undefined;
     let newColIndex = undefined;
@@ -241,13 +274,13 @@ class JgsDataTable {
       newColIndex = colIndex;
     }
 
-    const cell = self.getCell(newRowIndex, newColIndex);
+    const cell = this.getCell(newRowIndex, newColIndex);
 
     if (cell === undefined || cell === null) {
       return;
     }
 
-    self.selectCell(cell);
+    this.selectCell(cell);
   }
 
   //
@@ -259,8 +292,8 @@ class JgsDataTable {
     this.editor = document.createElement('input');
     this.setElementStyle(this.editor, this.options.editorStyle);
 
-    document.addEventListener('keydown', (event) => { this.doKeyup(this, event); });
-    document.addEventListener('click', (event) => { this.checkClickOutside(this, event); });
+    document.addEventListener('keydown', (event) => { this.doKeyLogic(event); });
+    document.addEventListener('click', (event) => { this.checkClickOutside(event); });
 
     let tr = this.table.insertRow();
 
@@ -371,6 +404,7 @@ class JgsDataTable {
     }
 
     this.editor.value = cell.innerHTML;
+    this.editor.dataset.prevValue = this.editor.value;
     cell.innerHTML = '';
 
     cell.appendChild(this.editor);
@@ -448,7 +482,10 @@ class JgsDataTable {
       }
 
       this.editor.addEventListener('keyup', () => {
-        this.filterDropdown();
+        if (this.editor.value !== this.editor.dataset.prevValue) {
+          this.editor.dataset.prevValue = this.editor.value;
+          this.filterDropdown();
+        }
       });
 
       this.filterDropdown();
@@ -464,6 +501,7 @@ class JgsDataTable {
 
     const searchValue = this.editor.value.toLowerCase();
     this.currentDropdownItems = [];
+    this.highlightedItem = undefined;
 
     this.dropdown.innerHTML = '';
 
@@ -476,6 +514,7 @@ class JgsDataTable {
         const item = document.createElement('div');
 
         item.innerHTML = value;
+        item.dataset.index = this.currentDropdownItems.length - 1;
 
         this.setElementStyle(item, this.options.dropdownItemStyle);
 
@@ -489,30 +528,81 @@ class JgsDataTable {
         });
 
         item.addEventListener('mouseover', () => {
-          let color = '#f0f0f0';
-
-          if (this.options.headerCellStyle['background-color'] !== undefined) {
-            color = this.options.headerCellStyle['background-color'];
-          }
-
-          item.style['background-color'] = color;
+          this.highlightItem(item);
         });
 
         item.addEventListener('mouseout', () => {
-          let color = '#fff';
-
-          if (this.options.dropdownItemStyle['background-color'] !== undefined) {
-            color = this.options.dropdownItemStyle['background-color'];
-          }
-
-          item.style['background-color'] = color;
+          this.unhighlightItem(item);
         });
 
         this.dropdown.appendChild(item);
       }
     }
 
+    if (this.currentDropdownItems.length === 1) {
+      this.highlightItemByIndex(0);
+    }
+
     this.container.appendChild(this.dropdown);
+  }
+
+  //
+  highlightItemByIndex(index) {
+
+    if (this.dropdown === undefined || index === undefined) {
+      return;
+    }
+
+    if (index < 0 || index >= this.currentDropdownItems.length) {
+      return;
+    }
+
+    const newItem = this.dropdown.querySelector(`div[data-index="${index}"]`);
+
+    if (newItem === null) {
+      return;
+    }
+
+    const items = this.dropdown.querySelectorAll('div');
+
+    for (let item of items) {
+      this.unhighlightItem(item);
+    }
+
+    this.highlightItem(newItem);
+  }
+
+  //
+  highlightItem(item) {
+    if (item === undefined || item === null) {
+      return;
+    }
+
+    // highlight item
+    let color = '#f0f0f0';
+
+    if (this.options.headerCellStyle['background-color'] !== undefined) {
+      color = this.options.headerCellStyle['background-color'];
+    }
+
+    item.style['background-color'] = color;
+
+    this.highlightedItem = item;
+  }
+
+  //
+  unhighlightItem(item) {
+    if (item === undefined || item === null) {
+      return;
+    }
+
+    let color = '#fff';
+
+    if (this.options.dropdownItemStyle['background-color'] !== undefined) {
+      color = this.options.dropdownItemStyle['background-color'];
+    }
+
+    item.style['background-color'] = color;
   }
 
   //
