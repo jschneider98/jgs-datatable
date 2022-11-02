@@ -18,6 +18,9 @@ class JgsDataTable {
     this.numRows = data.length;
     this.numCols = this.options.columns.length;
 
+    this.invalidCells = {};
+    this.invalidRows = {};
+
     if (this.options.tableStyle === undefined) {
       this.options.tableStyle = {
         'border-left': '1px solid #ccc',
@@ -220,9 +223,9 @@ class JgsDataTable {
 
         if (this.highlightedItem === undefined) {
           this.highlightItemByIndex(0);
+        } else {
+          this.highlightItemByIndex(this.highlightedItem.dataset.index*1 + 1);
         }
-
-        this.highlightItemByIndex(this.highlightedItem.dataset.index*1 + 1);
       }
 
       if (key === 'ArrowUp') {
@@ -325,6 +328,28 @@ class JgsDataTable {
 
   //
   validateCell(cell) {
+    if (cell === undefined || cell === null) {
+      return true;
+    }
+
+    if (this.sysValidateCell(cell) === true) {
+      delete this.invalidCells[`rowIndex:${cell.dataset.rowIndex},colIndex:${cell.dataset.colIndex}`];
+
+      if (this.isRowValid(cell.dataset.rowIndex) === true) {
+        delete this.invalidRows[cell.dataset.rowIndex];
+      }
+
+      return true;
+    }
+
+    this.invalidCells[`rowIndex:${cell.dataset.rowIndex},colIndex:${cell.dataset.colIndex}`] = true;
+    this.invalidRows[cell.dataset.rowIndex] = true;
+
+    return false;
+  }
+
+  //
+  sysValidateCell(cell) {
 
     if (cell === undefined || cell === null) {
       return true;
@@ -372,6 +397,17 @@ class JgsDataTable {
     const pattern =  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
 
     return pattern.test(value);
+  }
+
+  //
+  isRowValid(rowIndex) {
+    for (let colIndex = 0; colIndex < this.options.columns.length; colIndex++) {
+      if (this.invalidCells[`rowIndex:${rowIndex},colIndex:${colIndex}`] !== undefined) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   //
