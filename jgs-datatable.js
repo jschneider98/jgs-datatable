@@ -293,7 +293,6 @@ class JgsDataTable {
 
   //
   validateData() {
-
     for (let rowIndex = 0; rowIndex < this.data.length; rowIndex++) {
       const row = this.data[rowIndex];
 
@@ -315,6 +314,7 @@ class JgsDataTable {
 
     if (this.validateCell(cell) === true) {
       this.addElementStyle(cell, this.options.rowCellStyle);
+
       return true;
     }
 
@@ -527,8 +527,11 @@ class JgsDataTable {
       setTimeout(() => {
         cell.innerHTML = tmpVal;
         this.validateCellWithStyle(cell);
-      }, "10");
 
+        if (cell === this.currentCell) {
+          this.addElementStyle(this.currentCell, this.options.rowCellHighlightStyle);
+        }
+      }, "10");
     }
 
     this.setElementStyle(this.currentCell, this.options.rowCellStyle);
