@@ -83,6 +83,12 @@ class JgsDataTable {
       }
     }
 
+    if (this.options.rowCellErrorStyle === undefined) {
+      this.options.rowCellErrorStyle = {
+        'background-color': '#ffadbb',
+      }
+    }
+
     if (this.options.rowCellHighlightStyle === undefined) {
       this.options.rowCellHighlightStyle = {
         'background-color': 'rgba(75, 137, 255, 0.1)',
@@ -131,6 +137,7 @@ class JgsDataTable {
         'white-space': 'nowrap',
         'overflow': 'hidden',
         'line-height': '21px',
+        'min-height': '21px',
         'font-size': '13px',
         'font-family': '-apple-system, "system-ui", "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif',
         'z-index': '200',
@@ -139,6 +146,7 @@ class JgsDataTable {
     }
 
     this.toHtml();
+    this.validateData();
   }
 
   //
@@ -281,6 +289,89 @@ class JgsDataTable {
     }
 
     this.selectCell(cell);
+  }
+
+  //
+  validateData() {
+
+    for (let rowIndex = 0; rowIndex < this.data.length; rowIndex++) {
+      const row = this.data[rowIndex];
+
+      for (let colIndex = 0; colIndex < row.length; colIndex++) {
+        const cell = this.getCell(rowIndex, colIndex);
+
+        if (cell !== null) {
+          this.validateCellWithStyle(cell);
+        }
+      }
+    }
+  }
+
+  //
+  validateCellWithStyle(cell) {
+    if (cell === undefined || cell === null) {
+      return true;
+    }
+
+    if (this.validateCell(cell) === true) {
+      this.addElementStyle(cell, this.options.rowCellStyle);
+      return true;
+    }
+
+    this.addElementStyle(cell, this.options.rowCellErrorStyle);
+
+    return false;
+  }
+
+  //
+  validateCell(cell) {
+
+    if (cell === undefined || cell === null) {
+      return true;
+    }
+
+    const col = this.options.columns[cell.dataset.colIndex];
+
+    if (col.required !== undefined && col.required === true && this.isEmpty(cell.innerHTML)) {
+      return false;
+    }
+
+    if (col.type !== undefined && col.type === 'autocomplete' && col.strict !== undefined && col.strict === true) {
+
+      if (col.source === undefined) {
+        return true;
+      }
+
+      for (let value of col.source) {
+        if (value === cell.innerHTML) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    if (col.type !== undefined && col.type === 'email' && this.isValidEmail(cell.innerHTML) === false) {
+      return false;
+    }
+
+    return true;
+  }
+
+  //
+  isEmpty(value) {
+    return (value.trim() === '');
+  }
+
+  //
+  isValidEmail(value) {
+    if (value.trim() === '') {
+      return true;
+    }
+
+    const pattern =  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
+
+    return pattern.test(value);
   }
 
   //
@@ -435,12 +526,14 @@ class JgsDataTable {
 
       setTimeout(() => {
         cell.innerHTML = tmpVal;
+        this.validateCellWithStyle(cell);
       }, "10");
 
     }
 
     this.setElementStyle(this.currentCell, this.options.rowCellStyle);
     this.addCustomCellStyle(this.currentCell, this.currentCell.dataset.colIndex);
+    this.validateCellWithStyle(this.currentCell);
 
     this.editing = false;
     this.currentCell = {}
